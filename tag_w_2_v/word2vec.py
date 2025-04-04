@@ -219,6 +219,7 @@ if __name__ == "__main__":
   # 准备存储结构
   top10_output = {}
   top100_output = {}
+  least100_output = {}
   vector_output = {}
 
   # 遍历所有有效动画
@@ -235,9 +236,10 @@ if __name__ == "__main__":
     similarities = similarity_matrix[idx]
     sorted_indices = np.argsort(-similarities)
 
-    # 排除自己并获取top结果
+    # 排除自己并获取top和least结果
     valid_indices = [i for i in sorted_indices if i != idx]
     top100_indices = valid_indices[:100]
+    least100_indices = valid_indices[-100:]
 
     # 构建top10数据
     top10_list = []
@@ -255,6 +257,12 @@ if __name__ == "__main__":
       for sim_idx in top100_indices
     ]
 
+    # 构建least100的压缩格式（[id, 相似度]）
+    least100_compressed = [
+      [valid_anime_ids[sim_idx], round(float(similarities[sim_idx]), 4)]
+      for sim_idx in least100_indices
+    ]
+
     # 存储结果
     top10_output[anime_id] = {
       "name": name,
@@ -262,6 +270,7 @@ if __name__ == "__main__":
       "top10": top10_list
     }
     top100_output[anime_id] = top100_compressed
+    least100_output[anime_id] = least100_compressed
 
   # 保存结果文件
   print("\n保存输出文件...")
@@ -274,7 +283,18 @@ if __name__ == "__main__":
   with open("anime_top100.compact.json", "w", encoding="utf-8") as f:
     json.dump(top100_output, f, ensure_ascii=False, separators=(",", ":"))
 
-  # 3. 特征向量存储（使用二进制格式优化）
+  # 3. 每个动画的least100不相似动画（压缩格式）
+  with open("anime_least100.compact.json", "w", encoding="utf-8") as f:
+    json.dump(least100_output, f, ensure_ascii=False, separators=(",", ":"))
+
+  # 4. 保存相似度矩阵
+  np.savez_compressed(
+      "anime_similarity_matrix_tags.npz",
+      ids=valid_anime_ids,
+      matrix=similarity_matrix.astype(np.float32)
+  )
+
+  # 5. 特征向量存储（使用二进制格式优化）
   np.savez_compressed(
       "anime_vectors.npz",
       ids=valid_anime_ids,
@@ -282,15 +302,16 @@ if __name__ == "__main__":
   )
 
   # 附加元数据文件
-  with open("anime_vector_metadata.json", "w", encoding="utf-8") as f:
-    metadata = {
-      str(anime_id): {"name": query.id_to_info[anime_id]["name"]}
-      for anime_id in valid_anime_ids
-    }
-    json.dump(metadata, f, ensure_ascii=False, indent=2)
+  # with open("anime_vector_metadata.json", "w", encoding="utf-8") as f:
+  #   metadata = {
+  #     str(anime_id): {"name": query.id_to_info[anime_id]["name"]}
+  #     for anime_id in valid_anime_ids
+  #   }
+  #   json.dump(metadata, f, ensure_ascii=False, indent=2)
 
   print("处理完成！生成以下文件：")
   print("- anime_top10.json (带完整信息的Top10相似动画)")
   print("- anime_top100.compact.json (压缩格式的Top100相似动画)")
+  print("- anime_least100.compact.json (压缩格式的Least100不相似动画)")
   print("- anime_vectors.npz (压缩存储的特征向量)")
   print("- anime_vector_metadata.json (标题元数据)")
